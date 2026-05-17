@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Starlink Hotspot</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://js.paystack.co/v1/inline.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0b0f1a;
+    --bg3: #1c2435;
+    --card: #151d2e;
+    --border: rgba(255,255,255,0.08);
+    --border-hi: rgba(255,255,255,0.18);
+    --accent: #00d4aa;
+    --accent-dim: rgba(0,212,170,0.12);
+    --accent-dim2: rgba(0,212,170,0.22);
+    --text: #f0f4ff;
+    --text2: #8a9bc0;
+    --text3: #4e5f7a;
+    --danger: #f16262;
+    --warning: #f59e0b;
+    --radius: 16px;
+    --radius-sm: 10px;
+    --radius-xs: 7px;
+    --font: 'Sora', sans-serif;
+    --mono: 'DM Mono', monospace;
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0,212,170,0.13), transparent),
+      radial-gradient(ellipse 60% 40% at 80% 80%, rgba(0,100,200,0.07), transparent);
+    pointer-events: none; z-index: 0;
+  }
+
+  .portal { width: 100%; max-width: 440px; position: relative; z-index: 1; }
+
+  /* ── logo ── */
+  .logo-row { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+  .logo-icon {
+    width: 38px; height: 38px;
+    background: var(--accent-dim2); border-radius: 10px; border: 1px solid var(--accent);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .logo-icon svg { width: 20px; height: 20px; fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; }
+  .logo-name { font-size: 15px; font-weight: 600; color: var(--text); }
+  .logo-sub  { font-size: 11px; color: var(--text2); margin-top: 1px; letter-spacing: 0.4px; }
+
+  /* ── card / screens ── */
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 28px;
+    animation: fadeUp 0.35s cubic-bezier(0.22,1,0.36,1) both;
+  }
+  @keyframes fadeUp {
+    from { opacity:0; transform:translateY(14px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  .screen-title { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 4px; letter-spacing: -0.4px; }
+  .screen-sub   { font-size: 13px; color: var(--text2); margin-bottom: 22px; line-height: 1.6; }
+
+  /* ── signal ── */
+  .signal-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 11px 14px; background: var(--bg3);
+    border-radius: var(--radius-xs); margin-bottom: 20px; border: 1px solid var(--border);
+  }
+  .signal-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim2); animation: pulse 2s ease-in-out infinite; flex-shrink: 0;
+  }
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 0 0 3px var(--accent-dim2); }
+    50%      { box-shadow: 0 0 0 6px var(--accent-dim); }
+  }
+  .signal-text    { font-size: 12px; color: var(--text2); flex: 1; }
+  .signal-quality { font-size: 11px; font-family: var(--mono); color: var(--accent); font-weight: 500; }
+
+  /* ── fields ── */
+  .field-group { margin-bottom: 14px; }
+  .field-label {
+    font-size: 11px; color: var(--text2); font-weight: 500;
+    margin-bottom: 6px; letter-spacing: 0.5px; text-transform: uppercase;
+  }
+  .field-input {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: var(--radius-xs); color: var(--text);
+    font-family: var(--mono); font-size: 14px; padding: 11px 14px;
+    outline: none; transition: border-color 0.15s;
+  }
+  .field-input:focus { border-color: var(--accent); }
+  .field-input::placeholder { color: var(--text3); }
+  .field-input.error { border-color: var(--danger); }
+
+  .error-msg { font-size: 12px; color: var(--danger); margin-top: 5px; display: none; }
+  .error-msg.visible { display: block; }
+
+  /* ── buttons ── */
+  .btn {
+    width: 100%; padding: 14px; border-radius: var(--radius-sm); border: none;
+    font-family: var(--font); font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s; letter-spacing: 0.2px;
+    display: block;
+  }
+  .btn-primary { background: var(--accent); color: #081410; }
+  .btn-primary:hover { background: #00eec0; transform: translateY(-1px); }
+  .btn-primary:active { transform: scale(0.99); }
+  .btn-primary:disabled { background: var(--bg3); color: var(--text3); cursor: not-allowed; transform: none; }
+  .btn-outline {
+    background: transparent; color: var(--text2);
+    border: 1px solid var(--border); margin-top: 10px;
+  }
+  .btn-outline:hover { background: var(--bg3); color: var(--text); border-color: var(--border-hi); }
+  .btn-ghost {
+    background: transparent; color: var(--text2);
+    border: 1px solid var(--border); margin-top: 10px;
+  }
+  .btn-ghost:hover { background: var(--bg3); color: var(--text); border-color: var(--border-hi); }
+  .btn-danger {
+    background: transparent; color: var(--danger);
+    border: 1px solid rgba(241,98,98,0.3); margin-top: 10px;
+  }
+  .btn-danger:hover { background: rgba(241,98,98,0.08); }
+
+  .back-btn {
+    display: flex; align-items: center; gap: 5px;
+    background: none; border: none; color: var(--text2);
+    font-family: var(--font); font-size: 13px;
+    cursor: pointer; padding: 0; margin-bottom: 18px; transition: color 0.15s;
+  }
+  .back-btn:hover { color: var(--text); }
+
+  /* switch link */
+  .switch-link {
+    text-align: center; font-size: 13px; color: var(--text2); margin-top: 18px;
+  }
+  .switch-link a { color: var(--accent); text-decoration: none; cursor: pointer; font-weight: 500; }
+  .switch-link a:hover { text-decoration: underline; }
+
+  /* divider */
+  hr.divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+  /* ── landing hero ── */
+  .hero {
+    text-align: center;
+    padding: 8px 0 24px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+  .hero-icon {
+    width: 60px; height: 60px; background: var(--accent-dim2);
+    border: 1px solid var(--accent); border-radius: 18px;
+    display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;
+  }
+  .hero-icon svg { width: 28px; height: 28px; fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-linecap: round; }
+  .hero-title { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -0.5px; margin-bottom: 6px; }
+  .hero-sub   { font-size: 13px; color: var(--text2); line-height: 1.6; }
+
+  /* ── user info bar ── */
+  .user-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: var(--radius-xs); padding: 10px 14px; margin-bottom: 20px;
+  }
+  .user-bar-left { display: flex; align-items: center; gap: 10px; }
+  .user-avatar {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--accent-dim2); border: 1px solid var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; color: var(--accent); letter-spacing: 0;
+  }
+  .user-name  { font-size: 13px; font-weight: 600; color: var(--text); }
+  .user-email { font-size: 11px; color: var(--text3); }
+  .logout-btn {
+    background: none; border: none; color: var(--text3);
+    font-size: 11px; font-family: var(--font); cursor: pointer; transition: color 0.15s; padding: 0;
+  }
+  .logout-btn:hover { color: var(--danger); }
+
+  /* ── plans ── */
+  .plans-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 10px; margin-bottom: 16px;
+  }
+  .plan {
+    background: var(--bg3); border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm); padding: 16px 14px;
+    cursor: pointer; transition: border-color 0.18s, background 0.18s;
+    position: relative; text-align: center;
+  }
+  .plan:hover { border-color: var(--border-hi); }
+  .plan.selected { border-color: var(--accent); background: var(--accent-dim); }
+  .plan-badge {
+    position: absolute; top: -9px; left: 50%; transform: translateX(-50%);
+    background: var(--accent); color: #0b1a15; font-size: 10px; font-weight: 700;
+    padding: 2px 8px; border-radius: 20px; letter-spacing: 0.5px; white-space: nowrap;
+  }
+  .plan-duration { font-size: 13px; color: var(--text2); margin-bottom: 6px; font-weight: 500; }
+  .plan-price    { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -0.5px; font-family: var(--mono); }
+  .plan-note     { font-size: 11px; color: var(--text3); margin-top: 5px; }
+  .plan.selected .plan-duration { color: var(--accent); }
+
+  .access-note {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--accent-dim); border: 1px solid rgba(0,212,170,0.2);
+    border-radius: var(--radius-xs); padding: 10px 14px;
+    font-size: 12px; color: var(--accent); margin-bottom: 16px;
+  }
+  .access-note svg { width: 14px; height: 14px; stroke: var(--accent); fill: none; stroke-width: 2; flex-shrink: 0; }
+
+  .pause-note {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: var(--radius-xs); padding: 10px 14px;
+    font-size: 12px; color: var(--text2); margin-bottom: 18px; line-height: 1.6;
+  }
+
+  /* ── payment summary ── */
+  .pay-summary {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 14px 16px;
+    margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .pay-summary .lbl { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 3px; }
+  .pay-summary .val { font-size: 15px; font-weight: 600; color: var(--text); }
+  .pay-amount { font-size: 26px; font-weight: 700; color: var(--accent); font-family: var(--mono); }
+
+  .pay-methods { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 20px; }
+  .pay-method-pill {
+    display: flex; align-items: center; gap: 5px;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 20px; padding: 4px 10px; font-size: 11px; color: var(--text2);
+  }
+  .pay-method-pill .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+
+  .secure-note {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--text3); margin-top: 14px; justify-content: center;
+  }
+  .secure-note svg { width: 12px; height: 12px; stroke: var(--text3); fill: none; stroke-width: 2; }
+
+  /* ── processing ── */
+  .processing-wrap { text-align: center; padding: 28px 0; }
+  .spinner {
+    width: 48px; height: 48px; border: 2.5px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.75s linear infinite; margin: 0 auto 20px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .processing-text { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .processing-sub  { font-size: 13px; color: var(--text2); }
+
+  /* ── session ── */
+  .session-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(0,212,170,0.1); border: 1px solid rgba(0,212,170,0.25);
+    border-radius: 20px; padding: 4px 12px; font-size: 11px; font-weight: 600;
+    color: var(--accent); letter-spacing: 0.5px; margin-bottom: 14px;
+  }
+  .session-badge .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .paused-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.25);
+    border-radius: 20px; padding: 4px 12px; font-size: 11px; font-weight: 600;
+    color: var(--warning); letter-spacing: 0.5px; margin-bottom: 14px;
+  }
+
+  .timer-block {
+    text-align: center; padding: 22px 0;
+    border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    margin-bottom: 18px;
+  }
+  .timer-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; }
+  .timer-display {
+    font-family: var(--mono); font-size: 52px; font-weight: 500;
+    color: var(--text); letter-spacing: -2px; line-height: 1; transition: color 0.4s;
+  }
+  .timer-display.warning { color: var(--warning); }
+  .timer-display.danger  { color: var(--danger); }
+  .timer-display.paused  { color: var(--text3); }
+  .timer-bar-wrap { margin-top: 12px; height: 4px; background: var(--bg3); border-radius: 4px; overflow: hidden; }
+  .timer-bar { height: 100%; background: var(--accent); border-radius: 4px; transition: width 1s linear, background 0.5s; }
+  .timer-bar.warning { background: var(--warning); }
+  .timer-bar.danger  { background: var(--danger); }
+  .timer-bar.paused  { background: var(--text3); transition: none; }
+  .timer-status { margin-top: 8px; font-size: 12px; color: var(--text3); }
+  .timer-status.active { color: var(--accent); }
+  .timer-status.paused { color: var(--warning); }
+
+  .stats-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 10px; margin-bottom: 18px;
+  }
+  .stat-card {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: var(--radius-xs); padding: 12px 14px; text-align: center;
+  }
+  .stat-lbl { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+  .stat-val { font-size: 15px; font-weight: 600; color: var(--text); font-family: var(--mono); }
+  .stat-val.green { color: var(--accent); }
+  .stat-val.muted { color: var(--text3); }
+
+  /* ── expired ── */
+  .center-icon {
+    width: 56px; height: 56px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;
+  }
+  .center-icon.danger { background: rgba(241,98,98,0.1); border: 1px solid rgba(241,98,98,0.25); }
+  .center-icon svg { width: 24px; height: 24px; fill: none; stroke-width: 2; stroke-linecap: round; }
+  .center-icon.danger svg { stroke: var(--danger); }
+
+  /* ── footer ── */
+  .footer { margin-top: 20px; text-align: center; font-size: 11px; color: var(--text3); line-height: 1.8; }
+  .footer a { color: var(--text2); text-decoration: none; }
+  .footer a:hover { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="portal">
+
+  <div class="logo-row">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+    </div>
+    <div>
+      <div class="logo-name">Starlink Hotspot</div>
+      <div class="logo-sub">High-speed internet access</div>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: LANDING ══ -->
+  <div class="screen card" id="screen-landing">
+    <div class="hero">
+      <div class="hero-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      </div>
+      <div class="hero-title">Welcome</div>
+      <div class="hero-sub">Sign in to access your session or create an account to get started.</div>
+    </div>
+    <div class="signal-row">
+      <div class="signal-dot"></div>
+      <div class="signal-text">Starlink signal detected &nbsp;·&nbsp; 5 GHz</div>
+      <div class="signal-quality">Excellent</div>
+    </div>
+    <button class="btn btn-primary" onclick="showScreen('screen-signin')">Sign in</button>
+    <button class="btn btn-outline" onclick="showScreen('screen-register')">Create account</button>
+  </div>
+
+  <!-- ══ SCREEN: SIGN IN ══ -->
+  <div class="screen card" id="screen-signin">
+    <button class="back-btn" onclick="showScreen('screen-landing')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      Back
+    </button>
+    <p class="screen-title">Sign in</p>
+    <p class="screen-sub">Enter your email and password to access your account.</p>
+
+    <div class="field-group">
+      <div class="field-label">Email address</div>
+      <input class="field-input" type="email" id="signin-email" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <div class="field-group">
+      <div class="field-label">Password</div>
+      <input class="field-input" type="password" id="signin-password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <div class="error-msg" id="signin-error">Incorrect email or password. Please try again.</div>
+
+    <button class="btn btn-primary" style="margin-top:6px" onclick="doSignIn()">Sign in →</button>
+    <div class="switch-link">Don't have an account? <a onclick="showScreen('screen-register')">Create one</a></div>
+  </div>
+
+  <!-- ══ SCREEN: REGISTER ══ -->
+  <div class="screen card" id="screen-register">
+    <button class="back-btn" onclick="showScreen('screen-landing')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      Back
+    </button>
+    <p class="screen-title">Create account</p>
+    <p class="screen-sub">Set up your account to buy internet time and manage your sessions.</p>
+
+    <div class="field-group">
+      <div class="field-label">Full name</div>
+      <input class="field-input" type="text" id="reg-name" placeholder="Amara Okafor" autocomplete="name">
+    </div>
+    <div class="field-group">
+      <div class="field-label">Email address</div>
+      <input class="field-input" type="email" id="reg-email" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <div class="field-group">
+      <div class="field-label">Phone number</div>
+      <input class="field-input" type="tel" id="reg-phone" placeholder="080xxxxxxxx" autocomplete="tel">
+    </div>
+    <div class="field-group">
+      <div class="field-label">Password</div>
+      <input class="field-input" type="password" id="reg-password" placeholder="Min. 6 characters" autocomplete="new-password">
+    </div>
+    <div class="field-group">
+      <div class="field-label">Confirm password</div>
+      <input class="field-input" type="password" id="reg-password2" placeholder="Repeat password" autocomplete="new-password">
+    </div>
+    <div class="error-msg" id="reg-error">Please fill in all fields correctly.</div>
+
+    <button class="btn btn-primary" style="margin-top:6px" onclick="doRegister()">Create account →</button>
+    <div class="switch-link">Already have an account? <a onclick="showScreen('screen-signin')">Sign in</a></div>
+  </div>
+
+  <!-- ══ SCREEN: PLANS ══ -->
+  <div class="screen card" id="screen-plans">
+    <div id="user-bar-plans" class="user-bar">
+      <div class="user-bar-left">
+        <div class="user-avatar" id="avatar-plans">—</div>
+        <div>
+          <div class="user-name" id="uname-plans">—</div>
+          <div class="user-email" id="uemail-plans">—</div>
+        </div>
+      </div>
+      <button class="logout-btn" onclick="doLogout()">Sign out</button>
+    </div>
+
+    <p class="screen-title">Buy internet time</p>
+    <p class="screen-sub">Choose how much time you want. All plans give full-speed access.</p>
+
+    <div class="access-note">
+      <svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      Every plan gives unlimited full speed — no throttling or restrictions.
+    </div>
+
+    <div class="plans-grid">
+      <div class="plan" data-seconds="1800" data-price="500" data-label="30 minutes" onclick="selectPlan(this)">
+        <div class="plan-duration">30 min</div>
+        <div class="plan-price">₦500</div>
+        <div class="plan-note">Full speed</div>
+      </div>
+      <div class="plan" data-seconds="3600" data-price="800" data-label="1 hour" onclick="selectPlan(this)">
+        <div class="plan-duration">1 hour</div>
+        <div class="plan-price">₦800</div>
+        <div class="plan-note">Full speed</div>
+      </div>
+      <div class="plan" data-seconds="10800" data-price="2000" data-label="3 hours" onclick="selectPlan(this)" style="position:relative">
+        <div class="plan-badge">BEST VALUE</div>
+        <div class="plan-duration">3 hours</div>
+        <div class="plan-price">₦2,000</div>
+        <div class="plan-note">Full speed</div>
+      </div>
+      <div class="plan" data-seconds="86400" data-price="3500" data-label="24 hours" onclick="selectPlan(this)">
+        <div class="plan-duration">24 hours</div>
+        <div class="plan-price">₦3,500</div>
+        <div class="plan-note">Full speed</div>
+      </div>
+    </div>
+
+    <div class="pause-note">
+      ⏸ &nbsp;Your timer <strong style="color:var(--text)">pauses</strong> when you disconnect and <strong style="color:var(--text)">resumes</strong> when you reconnect — unused time is never wasted.
+    </div>
+
+    <button class="btn btn-primary" id="btn-to-pay" onclick="goToPayment()" disabled>
+      Continue to Payment →
+    </button>
+  </div>
+
+  <!-- ══ SCREEN: PAYMENT ══ -->
+  <div class="screen card" id="screen-payment">
+    <button class="back-btn" onclick="showScreen('screen-plans')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      Back
+    </button>
+    <p class="screen-title">Confirm &amp; pay</p>
+    <p class="screen-sub">Your timer starts the moment you connect. It pauses whenever you disconnect.</p>
+
+    <div class="pay-summary">
+      <div>
+        <div class="lbl">Selected plan</div>
+        <div class="val" id="pay-plan-label">—</div>
+      </div>
+      <div class="pay-amount" id="pay-plan-amount">₦0</div>
+    </div>
+
+    <div class="pay-methods">
+      <div class="pay-method-pill"><div class="dot"></div>Card</div>
+      <div class="pay-method-pill"><div class="dot"></div>Bank transfer</div>
+      <div class="pay-method-pill"><div class="dot"></div>USSD</div>
+      <div class="pay-method-pill"><div class="dot"></div>Mobile money</div>
+    </div>
+
+    <button class="btn btn-primary" onclick="launchPaystack()">Pay with Paystack →</button>
+
+    <div class="secure-note">
+      <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      Secured by Paystack · CBN licensed · SSL encrypted
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: PROCESSING ══ -->
+  <div class="screen card" id="screen-processing">
+    <div class="processing-wrap">
+      <div class="spinner"></div>
+      <div class="processing-text" id="processing-text">Opening Paystack…</div>
+      <div class="processing-sub">Please do not close this window</div>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: ACTIVE SESSION ══ -->
+  <div class="screen card" id="screen-session">
+
+    <div id="user-bar-session" class="user-bar">
+      <div class="user-bar-left">
+        <div class="user-avatar" id="avatar-session">—</div>
+        <div>
+          <div class="user-name" id="uname-session">—</div>
+          <div class="user-email" id="uemail-session">—</div>
+        </div>
+      </div>
+      <button class="logout-btn" onclick="doLogout()">Sign out</button>
+    </div>
+
+    <div id="badge-connected" class="session-badge" style="display:none">
+      <div class="dot"></div> CONNECTED
+    </div>
+    <div id="badge-paused" class="paused-badge" style="display:none">
+      ⏸ &nbsp;PAUSED
+    </div>
+
+    <p class="screen-title" id="sess-title">You're online!</p>
+    <p class="screen-sub" id="sess-sub">Full-speed access active. Timer counts down while connected.</p>
+
+    <div class="timer-block">
+      <div class="timer-label">Time remaining</div>
+      <div class="timer-display" id="timer-display">00:00:00</div>
+      <div class="timer-bar-wrap"><div class="timer-bar" id="timer-bar" style="width:100%"></div></div>
+      <div class="timer-status" id="timer-status">● counting down</div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-lbl">Plan</div>
+        <div class="stat-val" id="sess-plan" style="font-size:13px;">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-lbl">Network</div>
+        <div class="stat-val green" id="sess-network">Starlink</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-lbl">Download</div>
+        <div class="stat-val" id="sess-dl">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-lbl">Upload</div>
+        <div class="stat-val" id="sess-ul">—</div>
+      </div>
+    </div>
+
+    <div id="btn-disconnect-wrap">
+      <button class="btn btn-ghost" onclick="pauseAndDisconnect()">Disconnect &nbsp;(pauses timer)</button>
+      <button class="btn btn-danger" onclick="endForever()">End session permanently</button>
+    </div>
+    <div id="btn-reconnect-wrap" style="display:none">
+      <button class="btn btn-primary" onclick="doResume()">Reconnect &amp; resume timer →</button>
+      <button class="btn btn-danger" onclick="endForever()">End session permanently</button>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: EXPIRED ══ -->
+  <div class="screen card" id="screen-expired">
+    <div class="center-icon danger">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    </div>
+    <p class="screen-title" style="text-align:center; margin-bottom:6px">Time's up</p>
+    <p class="screen-sub" style="text-align:center; margin-bottom:24px">
+      Your session time has been fully used. Buy a new plan to get back online.
+    </p>
+    <button class="btn btn-primary" onclick="goBackToPlans()">Buy a new plan →</button>
+    <button class="btn btn-ghost" onclick="doLogout()">Sign out</button>
+  </div>
+
+  <div class="footer">
+    Powered by Starlink &nbsp;·&nbsp; Payments by <a href="https://paystack.com" target="_blank">Paystack</a>
+    &nbsp;·&nbsp; <a href="#">Terms</a>
+  </div>
+</div>
+
+<script>
+  /*
+   * ──────────────────────────────────────────────────────────────────
+   *  CONFIGURATION
+   * ──────────────────────────────────────────────────────────────────
+   *  PAYSTACK_PUBLIC_KEY   Your Paystack public key (pk_live_...)
+   *
+   *  Backend API endpoints (all keyed by authenticated user ID / IP):
+   *
+   *  POST /api/auth/register  { name, email, phone, password }
+   *  POST /api/auth/login     { email, password }  → { token, user }
+   *  POST /api/auth/logout
+   *  GET  /api/session        → { exists, secondsRemaining, planLabel, isActive }
+   *  POST /api/verify-payment { reference, planLabel, seconds }
+   *  POST /api/resume
+   *  POST /api/pause          { secondsRemaining }
+   *  POST /api/end
+   * ──────────────────────────────────────────────────────────────────
+   *
+   *  In production, passwords are hashed with bcrypt on the server.
+   *  The demo stores accounts in localStorage for illustration only.
+   * ──────────────────────────────────────────────────────────────────
+   */
+  const CONFIG = {
+    PAYSTACK_PUBLIC_KEY: 'pk_test_REPLACE_WITH_YOUR_PAYSTACK_PUBLIC_KEY',
+    HOTSPOT_NAME:        'Starlink Hotspot',
+  };
+
+  /* ── localStorage keys ── */
+  const KEY_ACCOUNTS  = 'hs_accounts';   /* all registered accounts */
+  const KEY_LOGGED_IN = 'hs_logged_in';  /* email of current user */
+
+  /* ── in-memory state ── */
+  let currentUser    = null;  /* { name, email, phone } */
+  let selectedPlan   = null;  /* { label, price, seconds } */
+  let sessionSeconds = 0;
+  let sessionTotal   = 0;
+  let timerInterval  = null;
+  let speedInterval  = null;
+
+  /* ────────────────────────────────────────
+     DB helpers (localStorage simulation)
+     In production: real DB via backend API
+  ──────────────────────────────────────── */
+  function getAccounts() {
+    try { return JSON.parse(localStorage.getItem(KEY_ACCOUNTS)) || {}; } catch { return {}; }
+  }
+
+  function saveAccounts(db) {
+    localStorage.setItem(KEY_ACCOUNTS, JSON.stringify(db));
+  }
+
+  function getAccount(email) {
+    return getAccounts()[email.toLowerCase()] || null;
+  }
+
+  function upsertAccount(email, data) {
+    const db = getAccounts();
+    db[email.toLowerCase()] = { ...(db[email.toLowerCase()] || {}), ...data };
+    saveAccounts(db);
+  }
+
+  /* ────────────────────────────────────────
+     Bootstrap — check if already logged in
+  ──────────────────────────────────────── */
+  window.addEventListener('load', () => {
+    const loggedInEmail = localStorage.getItem(KEY_LOGGED_IN);
+    if (loggedInEmail) {
+      const acct = getAccount(loggedInEmail);
+      if (acct) {
+        currentUser = { name: acct.name, email: acct.email, phone: acct.phone };
+        afterLogin(acct);
+        return;
+      }
+    }
+    showScreen('screen-landing');
+  });
+
+  /* ────────────────────────────────────────
+     Auth
+  ──────────────────────────────────────── */
+  function doRegister() {
+    const name  = document.getElementById('reg-name').value.trim();
+    const email = document.getElementById('reg-email').value.trim().toLowerCase();
+    const phone = document.getElementById('reg-phone').value.trim();
+    const pass  = document.getElementById('reg-password').value;
+    const pass2 = document.getElementById('reg-password2').value;
+    const errEl = document.getElementById('reg-error');
+
+    errEl.classList.remove('visible');
+
+    if (!name || !email || !phone || !pass) {
+      errEl.textContent = 'Please fill in all fields.';
+      errEl.classList.add('visible'); return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errEl.textContent = 'Please enter a valid email address.';
+      errEl.classList.add('visible'); return;
+    }
+    if (pass.length < 6) {
+      errEl.textContent = 'Password must be at least 6 characters.';
+      errEl.classList.add('visible'); return;
+    }
+    if (pass !== pass2) {
+      errEl.textContent = 'Passwords do not match.';
+      errEl.classList.add('visible'); return;
+    }
+    if (getAccount(email)) {
+      errEl.textContent = 'An account with this email already exists.';
+      errEl.classList.add('visible'); return;
+    }
+
+    /* Save account fully — DEMO ONLY. Never store plain passwords in production. */
+    const newAcct = { name, email, phone, password: pass, secondsRemaining: 0, planLabel: '', sessionTotal: 0 };
+    const db = getAccounts();
+    db[email] = newAcct;
+    saveAccounts(db);
+
+    localStorage.setItem(KEY_LOGGED_IN, email);
+    currentUser = { name, email, phone };
+    afterLogin(newAcct);
+  }
+
+  function doSignIn() {
+    const email = document.getElementById('signin-email').value.trim().toLowerCase();
+    const pass  = document.getElementById('signin-password').value;
+    const errEl = document.getElementById('signin-error');
+
+    errEl.classList.remove('visible');
+
+    /* Read directly from localStorage for reliability */
+    const db   = getAccounts();
+    const acct = db[email] || null;
+
+    if (!acct) {
+      errEl.textContent = 'No account found with that email.';
+      errEl.classList.add('visible'); return;
+    }
+    if (acct.password !== pass) {
+      errEl.textContent = 'Incorrect password. Please try again.';
+      errEl.classList.add('visible'); return;
+    }
+
+    localStorage.setItem(KEY_LOGGED_IN, email);
+    currentUser = { name: acct.name, email: acct.email, phone: acct.phone };
+    afterLogin(acct);
+  }
+
+  function doLogout() {
+    /* Pause timer before logging out so time is saved */
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      clearInterval(speedInterval);
+      upsertAccount(currentUser.email, { secondsRemaining: sessionSeconds, sessionTotal });
+    }
+    localStorage.removeItem(KEY_LOGGED_IN);
+    currentUser = null;
+    selectedPlan = null;
+    sessionSeconds = 0;
+    sessionTotal = 0;
+    clearFields();
+    showScreen('screen-landing');
+  }
+
+  /* ────────────────────────────────────────
+     After login: check for existing session
+  ──────────────────────────────────────── */
+  function afterLogin(acct) {
+    updateUserBars();
+    clearFields();
+
+    if (acct.secondsRemaining > 0) {
+      /* Returning user with remaining time */
+      sessionSeconds = acct.secondsRemaining;
+      sessionTotal   = acct.sessionTotal || acct.secondsRemaining;
+      selectedPlan   = { label: acct.planLabel || 'Your plan', price: 0, seconds: acct.sessionTotal };
+      renderSessionUI(false);   /* show paused state so they choose to reconnect */
+    } else {
+      goBackToPlans();
+    }
+  }
+
+  /* ────────────────────────────────────────
+     Plans
+  ──────────────────────────────────────── */
+  function selectPlan(el) {
+    document.querySelectorAll('.plan').forEach(p => p.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedPlan = {
+      label:   el.dataset.label,
+      price:   parseInt(el.dataset.price),
+      seconds: parseInt(el.dataset.seconds),
+    };
+    document.getElementById('btn-to-pay').disabled = false;
+  }
+
+  function goToPayment() {
+    document.getElementById('pay-plan-label').textContent  = selectedPlan.label;
+    document.getElementById('pay-plan-amount').textContent = '₦' + selectedPlan.price.toLocaleString();
+    showScreen('screen-payment');
+  }
+
+  function goBackToPlans() {
+    selectedPlan = null;
+    document.getElementById('btn-to-pay').disabled = true;
+    document.querySelectorAll('.plan').forEach(p => p.classList.remove('selected'));
+    updateUserBars();
+    showScreen('screen-plans');
+  }
+
+  /* ────────────────────────────────────────
+     Paystack payment
+  ──────────────────────────────────────── */
+  function launchPaystack() {
+    showScreen('screen-processing');
+    document.getElementById('processing-text').textContent = 'Opening Paystack…';
+
+    const handler = PaystackPop.setup({
+      key:      CONFIG.PAYSTACK_PUBLIC_KEY,
+      email:    currentUser.email,
+      amount:   selectedPlan.price * 100,
+      currency: 'NGN',
+      ref:      'HS_' + Date.now() + '_' + Math.random().toString(36).slice(2,7).toUpperCase(),
+      label:    CONFIG.HOTSPOT_NAME + ' — ' + selectedPlan.label,
+      metadata: {
+        custom_fields: [
+          { display_name: 'User', variable_name: 'user', value: currentUser.name },
+          { display_name: 'Plan', variable_name: 'plan', value: selectedPlan.label },
+        ]
+      },
+      callback: function(response) {
+        document.getElementById('processing-text').textContent = 'Verifying payment…';
+        verifyPayment(response.reference);
+      },
+      onClose: function() { showScreen('screen-payment'); }
+    });
+
+    handler.openIframe();
+  }
+
+  async function verifyPayment(reference) {
+    try {
+      const res  = await fetch('/api/verify-payment', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reference, planLabel: selectedPlan.label, seconds: selectedPlan.seconds })
+      });
+      const data = await res.json();
+      if (data.success) startFreshSession();
+      else { alert('Verification failed. Ref: ' + reference); goBackToPlans(); }
+    } catch {
+      console.warn('No backend — demo mode.');
+      startFreshSession();
+    }
+  }
+
+  /* ────────────────────────────────────────
+     Session lifecycle
+  ──────────────────────────────────────── */
+  function startFreshSession() {
+    sessionSeconds = selectedPlan.seconds;
+    sessionTotal   = selectedPlan.seconds;
+    persistSession();
+    renderSessionUI(true);
+    startTimer();
+    startSpeedUpdates();
+  }
+
+  function pauseAndDisconnect() {
+    clearInterval(timerInterval);
+    clearInterval(speedInterval);
+    persistSession();
+
+    try { fetch('/api/pause', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ secondsRemaining: sessionSeconds }) }); }
+    catch { /* demo */ }
+
+    renderSessionUI(false);
+  }
+
+  function doResume() {
+    try { fetch('/api/resume', { method:'POST', headers:{'Content-Type':'application/json'} }); }
+    catch { /* demo */ }
+    renderSessionUI(true);
+    startTimer();
+    startSpeedUpdates();
+  }
+
+  async function endForever() {
+    if (!confirm('End your session permanently? Remaining time will be lost.')) return;
+    clearInterval(timerInterval);
+    clearInterval(speedInterval);
+    upsertAccount(currentUser.email, { secondsRemaining: 0, planLabel: '', sessionTotal: 0 });
+    try { await fetch('/api/end', { method:'POST', headers:{'Content-Type':'application/json'} }); }
+    catch { /* demo */ }
+    showScreen('screen-expired');
+  }
+
+  function persistSession() {
+    if (!currentUser) return;
+    upsertAccount(currentUser.email, {
+      secondsRemaining: sessionSeconds,
+      sessionTotal:     sessionTotal,
+      planLabel:        selectedPlan ? selectedPlan.label : '',
+    });
+  }
+
+  /* ────────────────────────────────────────
+     Timer
+  ──────────────────────────────────────── */
+  function startTimer() {
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      sessionSeconds--;
+      persistSession();
+      if (sessionSeconds <= 0) {
+        sessionSeconds = 0;
+        clearInterval(timerInterval);
+        clearInterval(speedInterval);
+        upsertAccount(currentUser.email, { secondsRemaining: 0, planLabel: '', sessionTotal: 0 });
+        renderTimer();
+        try { fetch('/api/end', { method:'POST', headers:{'Content-Type':'application/json'} }); } catch {}
+        setTimeout(() => showScreen('screen-expired'), 600);
+        return;
+      }
+      renderTimer();
+    }, 1000);
+    renderTimer();
+  }
+
+  function renderTimer() {
+    const pct  = sessionTotal > 0 ? (sessionSeconds / sessionTotal) * 100 : 0;
+    const warn = sessionSeconds <= 300 && sessionSeconds > 60;
+    const dang = sessionSeconds <= 60;
+    const paused = !timerInterval || timerInterval === null;
+
+    document.getElementById('timer-display').textContent = formatTime(sessionSeconds);
+    document.getElementById('timer-bar').style.width     = pct + '%';
+
+    const cls = dang ? ' danger' : warn ? ' warning' : '';
+    document.getElementById('timer-display').className   = 'timer-display' + cls;
+    document.getElementById('timer-bar').className       = 'timer-bar' + cls;
+  }
+
+  function formatTime(s) {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return [h, m, sec].map(n => String(n).padStart(2,'0')).join(':');
+  }
+
+  /* ────────────────────────────────────────
+     Speed simulation
+  ──────────────────────────────────────── */
+  function startSpeedUpdates() {
+    clearInterval(speedInterval);
+    updateSpeed();
+    speedInterval = setInterval(updateSpeed, 4000);
+  }
+
+  function updateSpeed() {
+    document.getElementById('sess-dl').textContent = (Math.random() * 80 + 60).toFixed(1) + ' Mbps';
+    document.getElementById('sess-ul').textContent = (Math.random() * 15 + 5).toFixed(1)  + ' Mbps';
+  }
+
+  /* ────────────────────────────────────────
+     Render session screen
+  ──────────────────────────────────────── */
+  function renderSessionUI(connected) {
+    document.getElementById('badge-connected').style.display = connected ? 'inline-flex' : 'none';
+    document.getElementById('badge-paused').style.display    = connected ? 'none' : 'inline-flex';
+    document.getElementById('sess-title').textContent = connected ? 'You\'re online!' : 'Timer paused';
+    document.getElementById('sess-sub').textContent   = connected
+      ? 'Full-speed access active. Timer counts down while you\'re connected.'
+      : 'You\'re disconnected. Your remaining time is saved to your account.';
+    document.getElementById('sess-plan').textContent     = selectedPlan ? selectedPlan.label : '—';
+    document.getElementById('sess-network').textContent  = connected ? 'Starlink' : '—';
+    document.getElementById('sess-network').className    = 'stat-val ' + (connected ? 'green' : 'muted');
+    document.getElementById('sess-dl').textContent       = connected ? '— Mbps' : '—';
+    document.getElementById('sess-ul').textContent       = connected ? '— Mbps' : '—';
+    document.getElementById('timer-status').textContent  = connected ? '● counting down' : '⏸ paused — time saved to your account';
+    document.getElementById('timer-status').className    = 'timer-status ' + (connected ? 'active' : 'paused');
+    document.getElementById('timer-display').className   = 'timer-display' + (connected ? '' : ' paused');
+    document.getElementById('timer-bar').className       = 'timer-bar' + (connected ? '' : ' paused');
+    document.getElementById('btn-disconnect-wrap').style.display = connected ? 'block' : 'none';
+    document.getElementById('btn-reconnect-wrap').style.display  = connected ? 'none'  : 'block';
+    renderTimer();
+    updateUserBars();
+    showScreen('screen-session');
+  }
+
+  /* ────────────────────────────────────────
+     UI helpers
+  ──────────────────────────────────────── */
+  function updateUserBars() {
+    if (!currentUser) return;
+    const initials = currentUser.name.trim().split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+    ['plans','session'].forEach(id => {
+      document.getElementById('avatar-' + id).textContent  = initials;
+      document.getElementById('uname-' + id).textContent   = currentUser.name;
+      document.getElementById('uemail-' + id).textContent  = currentUser.email;
+    });
+  }
+
+  function clearFields() {
+    ['signin-email','signin-password','reg-name','reg-email','reg-phone','reg-password','reg-password2']
+      .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    ['signin-error','reg-error'].forEach(id => document.getElementById(id).classList.remove('visible'));
+  }
+
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const el = document.getElementById(id);
+    el.classList.add('active');
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = '';
+  }
+</script>
+</body>
+</html>
