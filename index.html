@@ -629,62 +629,74 @@
   const CONFIG = {
     PAYSTACK_PUBLIC_KEY: 'pk_test_REPLACE_WITH_YOUR_PAYSTACK_PUBLIC_KEY',
     HOTSPOT_NAME:        'Starlink Hotspot',
+    API:                 'https://starlink-hotspot-production.up.railway.app',
   };
 
-  /* ── localStorage keys ── */
-  const KEY_ACCOUNTS  = 'hs_accounts';   /* all registered accounts */
-  const KEY_LOGGED_IN = 'hs_logged_in';  /* email of current user */
-
-  /* ── in-memory state ── */
-  let currentUser    = null;  /* { name, email, phone } */
-  let selectedPlan   = null;  /* { label, price, seconds } */
+  /* ── state ── */
+  let currentUser    = null;
+  let selectedPlan   = null;
   let sessionSeconds = 0;
   let sessionTotal   = 0;
   let timerInterval  = null;
   let speedInterval  = null;
 
-  /* ────────────────────────────────────────
-     DB helpers (localStorage simulation)
-     In production: real DB via backend API
-  ──────────────────────────────────────── */
-  function getAccounts() {
-    try { return JSON.parse(localStorage.getItem(KEY_ACCOUNTS)) || {}; } catch { return {}; }
+  /* ── JWT token helpers ── */
+  function getToken()         { return localStorage.getItem('hs_token'); }
+  function setToken(t)        { localStorage.setItem('hs_token', t); }
+  function clearToken()       { localStorage.removeItem('hs_token'); }
+
+  function authHeaders() {
+    return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() };
   }
 
-  function saveAccounts(db) {
-    localStorage.setItem(KEY_ACCOUNTS, JSON.stringify(db));
-  }
-
-  function getAccount(email) {
-    return getAccounts()[email.toLowerCase()] || null;
-  }
-
-  function upsertAccount(email, data) {
-    const db = getAccounts();
-    db[email.toLowerCase()] = { ...(db[email.toLowerCase()] || {}), ...data };
-    saveAccounts(db);
+  async function api(method, path, body) {
+    const opts = { method, headers: authHeaders() };
+    if (body) opts.body = JSON.stringify(body);
+    const res  = await fetch(CONFIG.API + path, opts);
+    return res.json();
   }
 
   /* ────────────────────────────────────────
      Bootstrap — check if already logged in
   ──────────────────────────────────────── */
-  window.addEventListener('load', () => {
-    const loggedInEmail = localStorage.getItem(KEY_LOGGED_IN);
-    if (loggedInEmail) {
-      const acct = getAccount(loggedInEmail);
-      if (acct) {
-        currentUser = { name: acct.name, email: acct.email, phone: acct.phone };
-        afterLogin(acct);
-        return;
-      }
+  window.addEventListener('load', async () => {
+    if (!getToken()) { showScreen('screen-landing'); return; }
+    try {
+      const me = await api('GET', '/api/auth/me');
+      if (!me.success) { clearToken(); showScreen('screen-landing'); return; }
+      currentUser = me.user;
+      await checkExistingSession();
+    } catch {
+      showScreen('screen-landing');
     }
-    showScreen('screen-landing');
   });
+
+  async function checkExistingSession() {
+    try {
+      const data = await api('GET', '/api/session');
+      if (data.exists && data.secondsRemaining > 0) {
+        sessionSeconds = data.secondsRemaining;
+        sessionTotal   = data.secondsTotal || data.secondsRemaining;
+        selectedPlan   = { label: data.planLabel, price: 0, seconds: data.secondsTotal };
+        updateUserBars();
+        clearFields();
+        renderSessionUI(false);
+      } else {
+        updateUserBars();
+        clearFields();
+        goBackToPlans();
+      }
+    } catch {
+      updateUserBars();
+      clearFields();
+      goBackToPlans();
+    }
+  }
 
   /* ────────────────────────────────────────
      Auth
   ──────────────────────────────────────── */
-  function doRegister() {
+  async function doRegister() {
     const name  = document.getElementById('reg-name').value.trim();
     const email = document.getElementById('reg-email').value.trim().toLowerCase();
     const phone = document.getElementById('reg-phone').value.trim();
@@ -710,79 +722,57 @@
       errEl.textContent = 'Passwords do not match.';
       errEl.classList.add('visible'); return;
     }
-    if (getAccount(email)) {
-      errEl.textContent = 'An account with this email already exists.';
-      errEl.classList.add('visible'); return;
+
+    try {
+      const data = await api('POST', '/api/auth/register', { name, email, phone, password: pass });
+      if (!data.success) { errEl.textContent = data.message; errEl.classList.add('visible'); return; }
+      setToken(data.token);
+      currentUser = data.user;
+      updateUserBars();
+      clearFields();
+      goBackToPlans();
+    } catch {
+      errEl.textContent = 'Could not connect to server. Please try again.';
+      errEl.classList.add('visible');
     }
-
-    /* Save account fully — DEMO ONLY. Never store plain passwords in production. */
-    const newAcct = { name, email, phone, password: pass, secondsRemaining: 0, planLabel: '', sessionTotal: 0 };
-    const db = getAccounts();
-    db[email] = newAcct;
-    saveAccounts(db);
-
-    localStorage.setItem(KEY_LOGGED_IN, email);
-    currentUser = { name, email, phone };
-    afterLogin(newAcct);
   }
 
-  function doSignIn() {
+  async function doSignIn() {
     const email = document.getElementById('signin-email').value.trim().toLowerCase();
     const pass  = document.getElementById('signin-password').value;
     const errEl = document.getElementById('signin-error');
 
     errEl.classList.remove('visible');
 
-    /* Read directly from localStorage for reliability */
-    const db   = getAccounts();
-    const acct = db[email] || null;
-
-    if (!acct) {
-      errEl.textContent = 'No account found with that email.';
-      errEl.classList.add('visible'); return;
+    try {
+      const data = await api('POST', '/api/auth/login', { email, password: pass });
+      if (!data.success) {
+        errEl.textContent = data.message || 'Incorrect email or password.';
+        errEl.classList.add('visible'); return;
+      }
+      setToken(data.token);
+      currentUser = data.user;
+      await checkExistingSession();
+    } catch {
+      errEl.textContent = 'Could not connect to server. Please try again.';
+      errEl.classList.add('visible');
     }
-    if (acct.password !== pass) {
-      errEl.textContent = 'Incorrect password. Please try again.';
-      errEl.classList.add('visible'); return;
-    }
-
-    localStorage.setItem(KEY_LOGGED_IN, email);
-    currentUser = { name: acct.name, email: acct.email, phone: acct.phone };
-    afterLogin(acct);
   }
 
-  function doLogout() {
-    /* Pause timer before logging out so time is saved */
+  async function doLogout() {
     if (timerInterval) {
       clearInterval(timerInterval);
       clearInterval(speedInterval);
-      upsertAccount(currentUser.email, { secondsRemaining: sessionSeconds, sessionTotal });
+      try { await api('POST', '/api/session/pause', { secondsRemaining: sessionSeconds }); } catch {}
     }
-    localStorage.removeItem(KEY_LOGGED_IN);
-    currentUser = null;
-    selectedPlan = null;
+    try { await api('POST', '/api/auth/logout'); } catch {}
+    clearToken();
+    currentUser    = null;
+    selectedPlan   = null;
     sessionSeconds = 0;
-    sessionTotal = 0;
+    sessionTotal   = 0;
     clearFields();
     showScreen('screen-landing');
-  }
-
-  /* ────────────────────────────────────────
-     After login: check for existing session
-  ──────────────────────────────────────── */
-  function afterLogin(acct) {
-    updateUserBars();
-    clearFields();
-
-    if (acct.secondsRemaining > 0) {
-      /* Returning user with remaining time */
-      sessionSeconds = acct.secondsRemaining;
-      sessionTotal   = acct.sessionTotal || acct.secondsRemaining;
-      selectedPlan   = { label: acct.planLabel || 'Your plan', price: 0, seconds: acct.sessionTotal };
-      renderSessionUI(false);   /* show paused state so they choose to reconnect */
-    } else {
-      goBackToPlans();
-    }
   }
 
   /* ────────────────────────────────────────
@@ -809,7 +799,6 @@
     selectedPlan = null;
     document.getElementById('btn-to-pay').disabled = true;
     document.querySelectorAll('.plan').forEach(p => p.classList.remove('selected'));
-    updateUserBars();
     showScreen('screen-plans');
   }
 
@@ -845,15 +834,14 @@
 
   async function verifyPayment(reference) {
     try {
-      const res  = await fetch('/api/verify-payment', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reference, planLabel: selectedPlan.label, seconds: selectedPlan.seconds })
+      const data = await api('POST', '/api/session/verify-payment', {
+        reference, planLabel: selectedPlan.label, seconds: selectedPlan.seconds
       });
-      const data = await res.json();
       if (data.success) startFreshSession();
       else { alert('Verification failed. Ref: ' + reference); goBackToPlans(); }
     } catch {
-      console.warn('No backend — demo mode.');
+      /* Demo fallback when no real Paystack key is set */
+      console.warn('Backend unreachable — demo mode.');
       startFreshSession();
     }
   }
@@ -864,26 +852,20 @@
   function startFreshSession() {
     sessionSeconds = selectedPlan.seconds;
     sessionTotal   = selectedPlan.seconds;
-    persistSession();
     renderSessionUI(true);
     startTimer();
     startSpeedUpdates();
   }
 
-  function pauseAndDisconnect() {
+  async function pauseAndDisconnect() {
     clearInterval(timerInterval);
     clearInterval(speedInterval);
-    persistSession();
-
-    try { fetch('/api/pause', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ secondsRemaining: sessionSeconds }) }); }
-    catch { /* demo */ }
-
+    try { await api('POST', '/api/session/pause', { secondsRemaining: sessionSeconds }); } catch {}
     renderSessionUI(false);
   }
 
-  function doResume() {
-    try { fetch('/api/resume', { method:'POST', headers:{'Content-Type':'application/json'} }); }
-    catch { /* demo */ }
+  async function doResume() {
+    try { await api('POST', '/api/session/resume'); } catch {}
     renderSessionUI(true);
     startTimer();
     startSpeedUpdates();
@@ -893,19 +875,8 @@
     if (!confirm('End your session permanently? Remaining time will be lost.')) return;
     clearInterval(timerInterval);
     clearInterval(speedInterval);
-    upsertAccount(currentUser.email, { secondsRemaining: 0, planLabel: '', sessionTotal: 0 });
-    try { await fetch('/api/end', { method:'POST', headers:{'Content-Type':'application/json'} }); }
-    catch { /* demo */ }
+    try { await api('POST', '/api/session/end'); } catch {}
     showScreen('screen-expired');
-  }
-
-  function persistSession() {
-    if (!currentUser) return;
-    upsertAccount(currentUser.email, {
-      secondsRemaining: sessionSeconds,
-      sessionTotal:     sessionTotal,
-      planLabel:        selectedPlan ? selectedPlan.label : '',
-    });
   }
 
   /* ────────────────────────────────────────
@@ -913,16 +884,14 @@
   ──────────────────────────────────────── */
   function startTimer() {
     clearInterval(timerInterval);
-    timerInterval = setInterval(() => {
+    timerInterval = setInterval(async () => {
       sessionSeconds--;
-      persistSession();
       if (sessionSeconds <= 0) {
         sessionSeconds = 0;
         clearInterval(timerInterval);
         clearInterval(speedInterval);
-        upsertAccount(currentUser.email, { secondsRemaining: 0, planLabel: '', sessionTotal: 0 });
         renderTimer();
-        try { fetch('/api/end', { method:'POST', headers:{'Content-Type':'application/json'} }); } catch {}
+        try { await api('POST', '/api/session/end'); } catch {}
         setTimeout(() => showScreen('screen-expired'), 600);
         return;
       }
@@ -935,7 +904,6 @@
     const pct  = sessionTotal > 0 ? (sessionSeconds / sessionTotal) * 100 : 0;
     const warn = sessionSeconds <= 300 && sessionSeconds > 60;
     const dang = sessionSeconds <= 60;
-    const paused = !timerInterval || timerInterval === null;
 
     document.getElementById('timer-display').textContent = formatTime(sessionSeconds);
     document.getElementById('timer-bar').style.width     = pct + '%';
