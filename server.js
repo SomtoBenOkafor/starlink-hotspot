@@ -6,28 +6,29 @@ const path    = require('path');
 
 const authRoutes    = require('./routes/auth');
 const sessionRoutes = require('./routes/session');
+const adminRoutes   = require('./routes/admin');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-/* ── Middleware ── */
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-/* ── Serve the portal HTML (put your frontend file here) ── */
-app.use(express.static(path.join(__dirname, 'public')));
+/* ── Health check — used by frontend signal indicator ── */
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, ts: Date.now() });
+});
 
-/* ── Routes ── */
+/* ── API Routes ── */
 app.use('/api/auth',    authRoutes);
 app.use('/api/session', sessionRoutes);
+app.use('/api/admin',   adminRoutes);
 
-/* ── Captive portal redirect ──────────────────────────────────────
-   When a device connects to the hotspot and tries to reach any URL,
-   dnsmasq redirects all DNS to this server's IP. This catch-all
-   sends them to the portal page.
-   (For HTTPS captive portals you'll also need a self-signed cert.)
-───────────────────────────────────────────────────────────────── */
+/* ── Serve portal frontend ── */
+app.use(express.static(path.join(__dirname, 'public')));
+
+/* ── Captive portal catch-all redirect ── */
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
