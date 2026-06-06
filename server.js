@@ -15,36 +15,30 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-/* ── Health check — used by frontend signal indicator ── */
+/* Health check */
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, ts: Date.now() });
 });
 
-/* ── API Routes ── */
+/* API Routes */
 app.use('/api/auth',    authRoutes);
 app.use('/api/session', sessionRoutes);
 app.use('/api/admin',   adminRoutes);
 
-/* ── Serve portal frontend ── */
-app.use(express.static(path.join(__dirname, 'public')));
+/* Serve portal frontend (files live in repo root) */
+app.use(express.static(path.join(__dirname)));
 
-/* ── Captive portal catch-all redirect ── */
+/* Catch-all redirect */
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-/* ── Global error handler ── */
+/* Global error handler */
 app.use((err, req, res, next) => {
   console.error('[server error]', err);
   res.status(500).json({ success: false, message: 'Internal server error.' });
 });
 
 app.listen(PORT, () => {
-  console.log(`
-  ┌─────────────────────────────────────────┐
-  │  Starlink Hotspot Backend               │
-  │  Listening on http://0.0.0.0:${PORT}        │
-  │  Environment: ${process.env.NODE_ENV || 'development'}              │
-  └─────────────────────────────────────────┘
-  `);
+  console.log('Starlink Hotspot Backend listening on port ' + PORT);
 });
