@@ -53,6 +53,10 @@ function addColumnIfMissing(table, column, definition) {
 /* Revenue tracking on sessions */
 addColumnIfMissing('sessions', 'amount_naira', 'INTEGER NOT NULL DEFAULT 0');
 
+/* Per-user data usage tracking (bytes downloaded/uploaded, reported by MikroTik) */
+addColumnIfMissing('sessions', 'bytes_down', 'INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('sessions', 'bytes_up',   'INTEGER NOT NULL DEFAULT 0');
+
 /* Admin flag on users (kept for future use; admin login uses ADMIN_PASSWORD) */
 addColumnIfMissing('users', 'is_admin', 'INTEGER NOT NULL DEFAULT 0');
 
@@ -65,6 +69,12 @@ const userHelpers = {
     VALUES (@name, @email, @phone, @password_hash)
   `),
   findByEmail: db.prepare(`SELECT * FROM users WHERE email = ? COLLATE NOCASE`),
+  findByPhone: db.prepare(`SELECT * FROM users WHERE phone = ?`),
+  findByEmailOrPhone: db.prepare(`
+    SELECT * FROM users
+    WHERE email = ? COLLATE NOCASE OR phone = ?
+    LIMIT 1
+  `),
   findById:    db.prepare(`SELECT * FROM users WHERE id = ?`),
 };
 
