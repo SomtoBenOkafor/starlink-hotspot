@@ -112,6 +112,8 @@ router.get('/sessions/active', requireAdmin, (req, res) => {
       s.plan_label,
       s.seconds_total,
       s.seconds_remaining,
+      s.bytes_down,
+      s.bytes_up,
       s.user_ip,
       s.created_at,
       s.updated_at,
