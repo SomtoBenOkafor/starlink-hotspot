@@ -2,7 +2,11 @@ const express            = require('express');
 const axios              = require('axios');
 const { sessionHelpers } = require('../db');
 const { requireAuth }    = require('../middleware/auth');
-const { grantAccess, revokeAccess, getClientIp } = require('../network');
+const network = require('../network');
+const { grantAccess, revokeAccess, getClientIp } = network;
+/* getUsage exists only in the MikroTik version of network.js —
+   fall back to zeros until that hardware is connected */
+const getUsage = network.getUsage || (async () => ({ bytesDown: 0, bytesUp: 0, uptimeSeconds: 0 }));
 const { db }             = require('../db');
 
 const router = express.Router();
@@ -110,6 +114,37 @@ router.post('/resume', async (req, res) => {
 });
 
 /* ────────────────────────────────────────────────────────────
+   Helper: snapshot the user's data counters into the DB
+───────────────────────────────────────────────────────────── */
+async function snapshotUsage(session) {
+  if (!session || !session.user_ip) return;
+  try {
+    const u = await getUsage(session.user_ip);
+    if (u.bytesDown > 0 || u.bytesUp > 0) {
+      db.prepare(`
+        UPDATE sessions SET bytes_down = ?, bytes_up = ?, updated_at = strftime('%s','now')
+        WHERE id = ?
+      `).run(u.bytesDown, u.bytesUp, session.id);
+    }
+  } catch { /* router unreachable — keep last known values */ }
+}
+
+/* ────────────────────────────────────────────────────────────
+   GET /api/session/usage
+   Live data usage for the logged-in user's current session.
+───────────────────────────────────────────────────────────── */
+router.get('/usage', async (req, res) => {
+  const session = sessionHelpers.findByUser.get(req.user.id);
+  if (!session) return res.json({ success: true, bytesDown: 0, bytesUp: 0 });
+
+  const live = await getUsage(session.user_ip);
+  /* Prefer live counters; fall back to last DB snapshot */
+  const bytesDown = live.bytesDown || session.bytes_down || 0;
+  const bytesUp   = live.bytesUp   || session.bytes_up   || 0;
+  return res.json({ success: true, bytesDown, bytesUp });
+});
+
+/* ────────────────────────────────────────────────────────────
    POST /api/session/pause
    Body: { secondsRemaining }
 ───────────────────────────────────────────────────────────── */
@@ -117,6 +152,7 @@ router.post('/pause', async (req, res) => {
   const { secondsRemaining } = req.body;
   const session = sessionHelpers.findByUser.get(req.user.id);
   if (!session) return res.status(404).json({ success: false, message: 'No session found.' });
+  await snapshotUsage(session);
   sessionHelpers.pause.run({ id: session.id, seconds_remaining: Math.max(0, parseInt(secondsRemaining) || 0) });
   if (session.user_ip) await revokeAccess(session.user_ip);
   console.log(`[session] PAUSE  user=${req.user.email}  remaining=${secondsRemaining}s`);
@@ -129,6 +165,7 @@ router.post('/pause', async (req, res) => {
 router.post('/end', async (req, res) => {
   const session = sessionHelpers.findByUser.get(req.user.id);
   if (!session) return res.status(404).json({ success: false, message: 'No session found.' });
+  await snapshotUsage(session);
   sessionHelpers.end.run({ id: session.id });
   if (session.user_ip) await revokeAccess(session.user_ip);
   console.log(`[session] END  user=${req.user.email}`);
