@@ -479,13 +479,14 @@
                 <th>User</th>
                 <th>Plan</th>
                 <th>Time Remaining</th>
+                <th>Data Used</th>
                 <th>IP Address</th>
                 <th>Connected At</th>
                 <th>Action</th>
               </tr>
             </thead>
             <tbody id="overview-active-body">
-              <tr><td colspan="6" class="loading">Loading…</td></tr>
+              <tr><td colspan="7" class="loading">Loading…</td></tr>
             </tbody>
           </table>
         </div>
@@ -506,13 +507,14 @@
                 <th>Phone</th>
                 <th>Plan</th>
                 <th>Time Remaining</th>
+                <th>Data Used</th>
                 <th>IP</th>
                 <th>Started</th>
                 <th>Action</th>
               </tr>
             </thead>
             <tbody id="sessions-body">
-              <tr><td colspan="8" class="loading">Loading…</td></tr>
+              <tr><td colspan="9" class="loading">Loading…</td></tr>
             </tbody>
           </table>
         </div>
@@ -743,7 +745,7 @@
   function renderActiveSessions(tbodyId, sessions, detailed) {
     const tbody = document.getElementById(tbodyId);
     if (!sessions.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="empty">No active sessions right now</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="empty">No active sessions right now</td></tr>';
       return;
     }
 
@@ -751,6 +753,7 @@
       const remaining = fmtTime(s.seconds_remaining);
       const pct       = s.seconds_total > 0 ? Math.round(s.seconds_remaining / s.seconds_total * 100) : 0;
       const started   = fmtDate(s.updated_at);
+      const dataUsed  = fmtBytes((s.bytes_down || 0) + (s.bytes_up || 0));
 
       return detailed ? `
         <tr>
@@ -759,6 +762,7 @@
           <td>${esc(s.user_phone || '—')}</td>
           <td>${esc(s.plan_label)}</td>
           <td><span class="td-green td-mono">${remaining}</span> <span style="color:var(--text3);font-size:10px">${pct}%</span></td>
+          <td class="td-mono">${dataUsed}</td>
           <td class="td-mono">${esc(s.user_ip || '—')}</td>
           <td>${started}</td>
           <td><button class="btn-sm danger" onclick="forceEndSession(${s.id}, this)">Disconnect</button></td>
@@ -767,11 +771,20 @@
           <td><div class="td-name">${esc(s.user_name)}</div><div style="font-size:11px;color:var(--text3)">${esc(s.user_email)}</div></td>
           <td>${esc(s.plan_label)}</td>
           <td><span class="td-green td-mono">${remaining}</span></td>
+          <td class="td-mono">${dataUsed}</td>
           <td class="td-mono">${esc(s.user_ip || '—')}</td>
           <td>${started}</td>
           <td><button class="btn-sm danger" onclick="forceEndSession(${s.id}, this)">Disconnect</button></td>
         </tr>`;
     }).join('');
+  }
+
+  function fmtBytes(bytes) {
+    if (!bytes || bytes <= 0) return '—';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let i = 0, v = bytes;
+    while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+    return v.toFixed(v >= 100 || i === 0 ? 0 : 1) + ' ' + units[i];
   }
 
   async function forceEndSession(sessionId, btn) {
